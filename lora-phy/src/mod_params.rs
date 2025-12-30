@@ -28,6 +28,10 @@ pub enum RadioError {
     ReceiveTimeout,
     DutyCycleUnsupported,
     RngUnsupported,
+    /// CRC check failed on received packet
+    CRCError,
+    /// Header error on received packet
+    HeaderError,
 }
 
 /// Status for a received packet
