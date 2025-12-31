@@ -886,6 +886,7 @@ where
         let mut irq_status = [0x00u8, 0x00u8];
         // Assuming intf.read_with_status is an existing async method that reads the IRQ status.
         let read_status = self.intf.read_with_status(&op_code, &mut irq_status).await?;
+        crate::irq_timestamp::record_irq_timestamp();
         let irq_flags = ((irq_status[0] as u16) << 8) | (irq_status[1] as u16);
 
         if OpStatusErrorMask::is_error(read_status) {

@@ -19,6 +19,8 @@ pub mod lorawan_radio;
 pub(crate) mod interface;
 /// InterfaceVariant implementations using `embedded-hal`.
 pub mod iv;
+/// IRQ timestamp tracking module
+pub mod irq_timestamp;
 /// Parameters used across the lora-phy crate to support various use cases
 pub mod mod_params;
 /// Traits implemented externally or internally to support control of LoRa chips
@@ -29,6 +31,7 @@ pub mod sx126x;
 pub mod sx127x;
 
 pub use crate::mod_params::RxMode;
+pub use irq_timestamp::{clear_irq_timestamp_fn, last_irq_timestamp_us, set_irq_timestamp_fn};
 
 pub use embedded_hal_async::delay::DelayNs;
 use interface::*;
