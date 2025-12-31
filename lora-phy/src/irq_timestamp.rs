@@ -1,15 +1,27 @@
-use core::sync::atomic::{AtomicU32, Ordering};
+//! IRQ timestamp tracking functionality for LoRa radio drivers.
+//!
+//! This module provides utilities to capture and retrieve timestamps when interrupt
+//! requests (IRQs) are received from the radio hardware. This is useful for precise
+//! timing measurements and diagnostics.
 
-static LAST_IRQ_TIMESTAMP_US: AtomicU32 = AtomicU32::new(0);
-static mut IRQ_TIMESTAMP_FN: Option<fn() -> u32> = None;
+use core::sync::atomic::Ordering;
 
-/// Sets a callback function to be used for capturing IRQ timestamps.
+#[cfg(target_has_atomic = "64")]
+use core::sync::atomic::AtomicU64;
+#[cfg(not(target_has_atomic = "64"))]
+use portable_atomic::AtomicU64;
+
+/// Stores the timestamp of the last recorded IRQ event in microseconds.
+static LAST_IRQ_TIMESTAMP_US: AtomicU64 = AtomicU64::new(0);
+
+/// Optional callback function to retrieve the current timestamp.
+static mut IRQ_TIMESTAMP_FN: Option<fn() -> u64> = None;
+
+/// Sets a callback function for capturing IRQ timestamps.
 ///
-/// The provided function should return a timestamp in microseconds. This function
-/// will be called internally whenever an IRQ status is read from the radio.
-///
-/// Note: Uses `u32` for portability across 32-bit embedded platforms. The timestamp
-/// will wrap around after approximately 4294 seconds (~71 minutes).
+/// The provided function should return a monotonic timestamp in microseconds.
+/// This callback will be invoked internally whenever an IRQ status is read from
+/// the radio hardware.
 ///
 /// # Arguments
 ///
@@ -17,47 +29,46 @@ static mut IRQ_TIMESTAMP_FN: Option<fn() -> u32> = None;
 ///
 /// # Safety
 ///
-/// This function uses unsafe code to set a static mutable variable. The caller must
-/// ensure that this function is not called concurrently from multiple threads.
-pub fn set_irq_timestamp_fn(f: fn() -> u32) {
+/// This function modifies a static mutable variable. The caller must ensure that
+/// this function is not called concurrently from multiple threads or interrupt contexts.
+pub fn set_irq_timestamp_fn(f: fn() -> u64) {
     unsafe {
         IRQ_TIMESTAMP_FN = Some(f);
     }
 }
 
-/// Clears the previously set IRQ timestamp callback function.
+/// Clears the IRQ timestamp callback function.
 ///
-/// After calling this function, IRQ timestamps will no longer be recorded.
+/// After calling this function, IRQ timestamps will no longer be recorded until
+/// [`set_irq_timestamp_fn`] is called again.
 ///
 /// # Safety
 ///
-/// This function uses unsafe code to modify a static mutable variable. The caller must
-/// ensure that this function is not called concurrently from multiple threads.
+/// This function modifies a static mutable variable. The caller must ensure that
+/// this function is not called concurrently from multiple threads or interrupt contexts.
 pub fn clear_irq_timestamp_fn() {
     unsafe {
         IRQ_TIMESTAMP_FN = None;
     }
 }
 
-/// Returns the timestamp (in microseconds) of the last recorded IRQ event.
+/// Returns the timestamp of the last recorded IRQ event.
 ///
-/// If no IRQ has been recorded yet, or if no timestamp function has been set,
-/// this will return 0.
-///
-/// Note: Returns `u32` for portability. The value wraps around after ~71 minutes.
+/// If no IRQ has been recorded yet, or if no timestamp function has been set
+/// via [`set_irq_timestamp_fn`], this will return 0.
 ///
 /// # Returns
 ///
-/// The last recorded IRQ timestamp in microseconds
-pub fn last_irq_timestamp_us() -> u32 {
+/// The last recorded IRQ timestamp in microseconds as a `u64` value
+pub fn last_irq_timestamp_us() -> u64 {
     LAST_IRQ_TIMESTAMP_US.load(Ordering::Relaxed)
 }
 
 /// Records the current timestamp when an IRQ status is read.
 ///
 /// This function is called internally by the radio driver when reading IRQ status.
-/// If a timestamp function has been set via `set_irq_timestamp_fn`, it will be
-/// called and the result stored for later retrieval via `last_irq_timestamp_us`.
+/// If a timestamp function has been set via [`set_irq_timestamp_fn`], it will be
+/// invoked and the result stored atomically for later retrieval via [`last_irq_timestamp_us`].
 pub(crate) fn record_irq_timestamp() {
     let f = unsafe { IRQ_TIMESTAMP_FN };
     if let Some(f) = f {
