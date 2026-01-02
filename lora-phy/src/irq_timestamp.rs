@@ -4,18 +4,13 @@
 //! requests (IRQs) are received from the radio hardware. This is useful for precise
 //! timing measurements and diagnostics.
 
-use core::sync::atomic::Ordering;
-
-#[cfg(target_has_atomic = "64")]
-use core::sync::atomic::AtomicU64;
-#[cfg(not(target_has_atomic = "64"))]
-use portable_atomic::AtomicU64;
+use core::sync::atomic::{AtomicU32, Ordering};
 
 /// Stores the timestamp of the last recorded IRQ event in microseconds.
-static LAST_IRQ_TIMESTAMP_US: AtomicU64 = AtomicU64::new(0);
+static LAST_IRQ_TIMESTAMP_US: AtomicU32 = AtomicU32::new(0);
 
 /// Optional callback function to retrieve the current timestamp.
-static mut IRQ_TIMESTAMP_FN: Option<fn() -> u64> = None;
+static mut IRQ_TIMESTAMP_FN: Option<fn() -> u32> = None;
 
 /// Sets a callback function for capturing IRQ timestamps.
 ///
@@ -31,7 +26,7 @@ static mut IRQ_TIMESTAMP_FN: Option<fn() -> u64> = None;
 ///
 /// This function modifies a static mutable variable. The caller must ensure that
 /// this function is not called concurrently from multiple threads or interrupt contexts.
-pub fn set_irq_timestamp_fn(f: fn() -> u64) {
+pub fn set_irq_timestamp_fn(f: fn() -> u32) {
     unsafe {
         IRQ_TIMESTAMP_FN = Some(f);
     }
@@ -59,8 +54,8 @@ pub fn clear_irq_timestamp_fn() {
 ///
 /// # Returns
 ///
-/// The last recorded IRQ timestamp in microseconds as a `u64` value
-pub fn last_irq_timestamp_us() -> u64 {
+/// The last recorded IRQ timestamp in microseconds as a `u32` value
+pub fn last_irq_timestamp_us() -> u32 {
     LAST_IRQ_TIMESTAMP_US.load(Ordering::Relaxed)
 }
 
